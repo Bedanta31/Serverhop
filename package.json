@@ -1,0 +1,25 @@
+{
+  "name": "monster-hopper",
+  "version": "1.0.0",
+  "description": "Public server browser and Auto-Hop website for Catch a Monster Roblox servers.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "roblox",
+    "express",
+    "game",
+    "automation",
+    "server-browser"
+  ],
+  "author": "Copilot",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

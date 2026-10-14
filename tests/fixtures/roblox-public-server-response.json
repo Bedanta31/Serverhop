@@ -1,0 +1,14 @@
+{
+  "previousPageCursor": null,
+  "nextPageCursor": "fixture-next-cursor",
+  "data": [
+    {
+      "id": "2b4356c7-f230-4836-a3d0-68211b6899a3",
+      "maxPlayers": 12,
+      "playing": 1,
+      "playerTokens": [],
+      "players": [],
+      "fps": 59.988464
+    }
+  ]
+}

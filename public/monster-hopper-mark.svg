@@ -1,0 +1,43 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="84" y1="60" x2="430" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A1130"/>
+      <stop offset="0.5" stop-color="#2A1458"/>
+      <stop offset="1" stop-color="#0E1C33"/>
+    </linearGradient>
+    <linearGradient id="portalGrad" x1="121" y1="132" x2="394" y2="356" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="0.5" stop-color="#5EEAD4"/>
+      <stop offset="1" stop-color="#2DD4FF"/>
+    </linearGradient>
+    <radialGradient id="eyeGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(160)">
+      <stop stop-color="#C4B5FD" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#C4B5FD" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="42" y="42" width="428" height="428" rx="108" fill="url(#bgGrad)"/>
+  <rect x="42" y="42" width="428" height="428" rx="108" stroke="rgba(180,202,255,0.25)"/>
+
+  <circle cx="256" cy="256" r="126" fill="url(#eyeGlow)" opacity="0.7"/>
+  <circle cx="256" cy="256" r="122" stroke="url(#portalGrad)" stroke-width="16" opacity="0.9"/>
+  <circle cx="256" cy="256" r="86" stroke="url(#portalGrad)" stroke-width="14" stroke-dasharray="8 18" opacity="0.8"/>
+
+  <path d="M190 168L160 120L214 146L190 168Z" fill="#7C3AED"/>
+  <path d="M322 168L352 120L298 146L322 168Z" fill="#7C3AED"/>
+  <path d="M174 188L144 154L196 162L174 188Z" fill="#A78BFA" opacity="0.9"/>
+  <path d="M338 188L368 154L316 162L338 188Z" fill="#A78BFA" opacity="0.9"/>
+
+  <path d="M179 206C205 176 233 162 256 162C279 162 307 176 333 206" stroke="#E9D5FF" stroke-width="14" stroke-linecap="round" opacity="0.85"/>
+  <path d="M180 284C212 314 228 326 256 326C284 326 300 314 332 284" stroke="#E9D5FF" stroke-width="18" stroke-linecap="round" opacity="0.8"/>
+
+  <g>
+    <circle cx="210" cy="255" r="24" fill="#071A2A"/>
+    <circle cx="302" cy="255" r="24" fill="#071A2A"/>
+    <circle cx="206" cy="250" r="9" fill="#7DD3FC"/>
+    <circle cx="298" cy="250" r="9" fill="#7DD3FC"/>
+    <path d="M235 282C245 294 250 300 256 300C262 300 267 294 277 282" stroke="#C4B5FD" stroke-width="12" stroke-linecap="round"/>
+  </g>
+
+  <circle cx="256" cy="256" r="20" fill="url(#portalGrad)" opacity="0.12"/>
+</svg>

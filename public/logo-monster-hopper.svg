@@ -1,0 +1,42 @@
+<svg width="1200" height="360" viewBox="0 0 1200 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="panelGlow" x1="62" y1="38" x2="370" y2="340" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A1130"/>
+      <stop offset="0.5" stop-color="#2A1458"/>
+      <stop offset="1" stop-color="#0E1C33"/>
+    </linearGradient>
+    <linearGradient id="logoGrad" x1="108" y1="72" x2="322" y2="290" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="0.5" stop-color="#5EEAD4"/>
+      <stop offset="1" stop-color="#2DD4FF"/>
+    </linearGradient>
+    <linearGradient id="wordGrad" x1="430" y1="86" x2="1100" y2="288" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5F3FF"/>
+      <stop offset="0.5" stop-color="#E2E8FF"/>
+      <stop offset="1" stop-color="#CFFAFE"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <rect x="48" y="48" width="284" height="284" rx="86" fill="url(#panelGlow)"/>
+    <rect x="48" y="48" width="284" height="284" rx="86" stroke="rgba(191,203,255,0.24)"/>
+
+    <circle cx="190" cy="190" r="92" stroke="url(#logoGrad)" stroke-width="12" opacity="0.9"/>
+    <circle cx="190" cy="190" r="54" stroke="url(#logoGrad)" stroke-width="10" stroke-dasharray="7 14" opacity="0.85"/>
+
+    <path d="M148 124L122 86L171 107L148 124Z" fill="#7C3AED"/>
+    <path d="M232 124L258 86L209 107L232 124Z" fill="#7C3AED"/>
+
+    <circle cx="160" cy="188" r="16" fill="#081B2B"/>
+    <circle cx="220" cy="188" r="16" fill="#081B2B"/>
+    <circle cx="156" cy="183" r="6" fill="#7DD3FC"/>
+    <circle cx="216" cy="183" r="6" fill="#7DD3FC"/>
+    <path d="M167 222C178 234 182 240 190 240C198 240 202 234 213 222" stroke="#E9D5FF" stroke-width="10" stroke-linecap="round"/>
+  </g>
+
+  <g>
+    <text x="398" y="186" fill="url(#wordGrad)" font-family="'Space Grotesk', 'Segoe UI', sans-serif" font-size="96" font-weight="700" letter-spacing="4">MONSTER</text>
+    <text x="400" y="264" fill="url(#wordGrad)" font-family="'Space Grotesk', 'Segoe UI', sans-serif" font-size="96" font-weight="700" letter-spacing="4">HOPPER</text>
+    <rect x="404" y="284" width="312" height="8" rx="4" fill="url(#logoGrad)" opacity="0.9"/>
+  </g>
+</svg>
