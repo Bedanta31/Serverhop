@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
 process.env.MONSTER_HOPPER_ALLOWED_ORIGINS = 'https://username.github.io';
 const { startServer, getServerConfig } = require('../server.js');
@@ -16,6 +19,30 @@ test('uses safe local defaults and Railway-provided network settings', () => {
     port: 5000
   });
   assert.throws(() => getServerConfig({ PORT: 'invalid' }), /PORT must be an integer/);
+});
+
+test('documents and configures the frontend to use the implemented loopback agent endpoint', () => {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const app = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+  const runtimeConfig = fs.readFileSync(path.join(__dirname, '..', 'public', 'runtime-config.js'), 'utf8');
+  const readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+  const pagesWorkflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8');
+  const runtimeContext = { window: {} };
+  vm.runInNewContext(runtimeConfig, runtimeContext);
+
+  assert.equal(packageJson.scripts.agent, 'node local-agent.js');
+  assert.match(app, /http:\/\/127\.0\.0\.1:3210/);
+  assert.match(app, /`\$\{LOCAL_AGENT_URL\}\/api\/status`/);
+  assert.match(app, /`\$\{LOCAL_AGENT_URL\}\/api\/join`/);
+  assert.match(app, /local-network access permission and CORS\/preflight errors/);
+  assert.match(app, /window\.location\.origin/);
+  assert.equal(runtimeContext.window.MONSTER_HOPPER_CONFIG.apiBaseUrl, 'https://serverhop-production.up.railway.app');
+  assert.doesNotMatch(runtimeContext.window.MONSTER_HOPPER_CONFIG.apiBaseUrl, /localhost|127\.0\.0\.1/i);
+  assert.match(readme, /MONSTER_HOPPER_ALLOWED_ORIGINS/);
+  assert.match(readme, /http:\/\/127\.0\.0\.1:3210\/api\/status/);
+  assert.match(pagesWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(pagesWorkflow, /^\s+push:/m);
+  assert.match(pagesWorkflow, /path: public/);
 });
 
 test('serves the website and health route on a dynamically assigned port', async () => {

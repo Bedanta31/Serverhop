@@ -39,6 +39,7 @@ function createCorsMiddleware({ allowedOrigins, allowPrivateNetwork = false }) {
     res.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
 
     if (allowPrivateNetwork && req.get('Access-Control-Request-Private-Network') === 'true') {
+      res.vary('Access-Control-Request-Private-Network');
       res.set('Access-Control-Allow-Private-Network', 'true');
     }
 

@@ -68,6 +68,18 @@ function apiUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
+function localAgentConnectionError(endpoint, error) {
+  const origin = window.location.origin;
+  return new Error(
+    `The local launch agent could not be reached at ${LOCAL_AGENT_URL}${endpoint} (${error.message}). ` +
+    'Start it with "npm run agent", then open the status URL for JSON diagnostics. ' +
+    `For GitHub Pages, set MONSTER_HOPPER_ALLOWED_ORIGINS on this PC to the exact origin ${origin} ` +
+    '(no path or trailing slash), then restart the agent. If the browser reports "Failed to fetch", ' +
+    'check its local-network access permission and CORS/preflight errors; browsers do not expose ' +
+    'which one blocked the request.'
+  );
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   cacheElements();
   serverSkipHistory = new ServerSkipHistory({
@@ -697,7 +709,7 @@ function sendJoinRequest(server, { signal, scheduleRefreshAfterLaunch = true } =
         }
         localStatus = statusPayload.data;
       } catch (error) {
-        throw new Error(`The local launch agent could not be reached. Ensure it is running with "npm run agent", allow this website origin in MONSTER_HOPPER_ALLOWED_ORIGINS, and permit local-network access in your browser. (${error.message})`);
+        throw localAgentConnectionError('/api/status', error);
       }
 
       if (!localStatus.launchAvailable) {
@@ -710,11 +722,16 @@ function sendJoinRequest(server, { signal, scheduleRefreshAfterLaunch = true } =
         return;
       }
 
-      const localResponse = await fetch(`${LOCAL_AGENT_URL}/api/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
+      let localResponse;
+      try {
+        localResponse = await fetch(`${LOCAL_AGENT_URL}/api/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      } catch (error) {
+        throw localAgentConnectionError('/api/join', error);
+      }
       const localPayload = await localResponse.json();
       if (!localResponse.ok || !localPayload.success || localPayload.data?.ok !== true) {
         throw new Error(localPayload.data?.error || localPayload.message || 'The local agent could not start Roblox.');

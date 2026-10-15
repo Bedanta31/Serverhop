@@ -45,17 +45,19 @@ Local development uses relative API paths, so the frontend talks to the same loc
 
 ## GitHub Pages frontend and Railway API
 
-The frontend can be hosted as static files on GitHub Pages while the API runs on Railway. Before publishing the static site, set `apiBaseUrl` in `public/runtime-config.js` to the Railway public URL, with no trailing slash:
+The frontend can be hosted as static files on GitHub Pages while the API runs on Railway. `public/runtime-config.js` points to the Railway public API URL, with no trailing slash:
 
 ```js
 window.MONSTER_HOPPER_CONFIG = {
-  apiBaseUrl: 'https://<your-railway-domain>'
+  apiBaseUrl: 'https://serverhop-production.up.railway.app'
 };
 ```
 
-Set `MONSTER_HOPPER_ALLOWED_ORIGINS` in Railway to the exact GitHub Pages origin (scheme and hostname, without a trailing slash), for example `https://<username>.github.io`. For a project site, this is still the same origin; the repository path is not included. Add any other frontend origins as a comma-separated list. The API rejects browser origins that are not configured.
+In Railway, set `MONSTER_HOPPER_ALLOWED_ORIGINS` to the exact GitHub Pages origin (scheme and hostname, without a trailing slash). For this repository's default project site, that origin is `https://bedanta31.github.io` (the `/Serverhop/` path is not part of the origin); use your configured custom-domain origin instead if you have one. Set the same origin in the Windows launch-agent terminal. The API rejects browser origins that are not configured. Railway provides `PORT` and `RAILWAY_ENVIRONMENT` automatically; `npm start` uses those values and binds the hosted backend to `0.0.0.0`. Do not set `HOST` to a public value on the local launch agent.
 
 The site uses relative asset paths so it works at the root or under a GitHub Pages project path. The API URL is only configured in `runtime-config.js`; no browser OS guess or Railway OS value is used to decide whether Roblox can launch.
+
+To publish the frontend, set the repository's **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The `Publish GitHub Pages` workflow packages only `public/` and is triggered manually from **Actions → Publish GitHub Pages → Run workflow**; it does not publish on push. Select the branch you want to publish when starting the workflow.
 
 ## GitHub upload
 
@@ -78,7 +80,7 @@ The site uses relative asset paths so it works at the root or under a GitHub Pag
 1. Open Railway and connect your GitHub account.
 2. Create a Railway project using **Deploy from GitHub Repo**.
 3. Select the Monster Hopper repository.
-4. Configure variables only if required. No application variables are required: Railway supplies `PORT` and `RAILWAY_ENVIRONMENT` automatically.
+4. Set `MONSTER_HOPPER_ALLOWED_ORIGINS` to the exact GitHub Pages origin. Railway supplies `PORT` and `RAILWAY_ENVIRONMENT` automatically; no secrets or Roblox credentials are required.
 5. Deploy, then inspect the build and runtime logs. The start command is `npm start`; no Dockerfile or custom build command is needed.
 6. In Railway's networking settings, generate a public domain for the service.
 7. Open the generated URL to verify the website, then open `<your-generated-url>/api/health` to verify the health endpoint. It returns a JSON success response and the Catch a Monster Place ID.
@@ -93,7 +95,16 @@ Attempted-server history and its 15-minute reset deadline are stored in the visi
 
 The API host never launches Roblox. Railway cannot open Roblox Player on your PC, and its Linux OS is not used to infer the visitor's OS. Launches require the separate local agent to be running on the visitor's Windows 11 PC, with Roblox Player installed. The agent reports its own OS and Roblox installation status; the website does not trust `navigator.platform` or the API server's OS.
 
-To use Join or Auto-Hop, install Node.js 18 or newer on the Windows 11 PC, open the Monster Hopper project folder, run `npm ci` once, then run `npm run agent` and leave that process open while using the website. The agent listens only on `127.0.0.1:3210`. Set `MONSTER_HOPPER_ALLOWED_ORIGINS` on that PC to include the exact GitHub Pages origin, as well as any local development origin you use; configure the same GitHub Pages origin on Railway. The local agent already permits the default local site origins `http://127.0.0.1:3000` and `http://localhost:3000`. Browsers may also prompt to allow a public website to connect to a local service. If the agent is absent, Roblox Player is not installed, or the PC is not Windows 11, the page reports that state and does not count a hop as launched.
+To use Join or Auto-Hop, install Node.js 18 or newer on the Windows 11 PC, open the Monster Hopper project folder, run `npm ci` once, then run `npm run agent` and leave that process open while using the website. The agent listens only on `127.0.0.1:3210`. Its status JSON is available at both `http://127.0.0.1:3210/` and `http://127.0.0.1:3210/api/status`; `POST /api/join` is the launch endpoint. Opening the host without a path now returns the same status JSON rather than Express's `Cannot GET /` response.
+
+Configure the exact frontend origin on the Windows PC before starting the agent. In PowerShell, replace the example with the origin shown in the browser address bar (scheme and host only, no path):
+
+```powershell
+$env:MONSTER_HOPPER_ALLOWED_ORIGINS = 'https://bedanta31.github.io'
+npm run agent
+```
+
+For a custom domain, use that exact origin instead. For local development, the agent also allows `http://127.0.0.1:3000` and `http://localhost:3000`. Configure the same GitHub Pages origin on Railway for the website API. Browsers may require granting local-network access to the page; if the agent status URL works but the page reports `Failed to fetch`, check both that browser permission and the exact-origin CORS preflight. The agent does not allow unconfigured origins. If the agent is absent, Roblox Player is not installed, or the PC is not Windows 11, the page reports that state and does not count a hop as launched.
 
 The browser/API handshake first reserves a daily hop, sends the validated Place ID and server Job ID to the local agent, then commits the reservation only when the agent reports that the Windows launch request was accepted. Failed launch requests release the reservation; abandoned reservations expire after two minutes. This remains a launch request only, not proof Roblox joined the server. The 50-hop UTC limit, 15-second minimum Auto-Hop interval, and 5-second post-launch refresh remain in effect.
 
@@ -106,6 +117,6 @@ The browser/API handshake first reserves a daily hop, sends the validated Place 
 - `POST /api/join` validates the server selection and reserves a daily hop for the local agent.
 - `POST /api/join/complete` commits or releases the reservation based on the local launch result.
 
-The local agent exposes `GET http://127.0.0.1:3210/api/status` and `POST http://127.0.0.1:3210/api/join`. It binds to loopback and allows browser requests only from configured origins.
+The local agent exposes `GET http://127.0.0.1:3210/`, `GET http://127.0.0.1:3210/api/status`, and `POST http://127.0.0.1:3210/api/join`. It binds to loopback and allows browser requests only from configured origins.
 
 For local development, leave `apiBaseUrl` empty to use the same-origin API.
