@@ -1,15 +1,18 @@
 const path = require('path');
+const { randomUUID } = require('crypto');
 const express = require('express');
 const { buildApiResponse, ensureServerSelection } = require('./src/validation.js');
-const { requestJoin } = require('./src/joinService.js');
 const serverService = require('./src/serverService.js');
 const { hopLimitService } = require('./src/hopLimitService.js');
 const { RobloxThumbnailService } = require('./src/robloxThumbnailService.js');
 const { getNextQuarterHourBoundary, shouldResetHistoryAt } = require('./src/quarterHour.js');
 const { GAME_PLACE_ID_STRING } = require('./src/config.js');
+const { parseAllowedOrigins, createCorsMiddleware } = require('./src/cors.js');
 
 const app = express();
 const robloxThumbnailService = new RobloxThumbnailService();
+const pendingLaunches = new Map();
+const LAUNCH_RESERVATION_TTL_MS = 2 * 60 * 1000;
 
 function parsePort(value) {
   if (value === undefined || value === '') {
@@ -32,6 +35,9 @@ function getServerConfig(env = process.env) {
 
 const { host: HOST, port: PORT } = getServerConfig();
 
+app.use(createCorsMiddleware({
+  allowedOrigins: parseAllowedOrigins(process.env.MONSTER_HOPPER_ALLOWED_ORIGINS)
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -111,7 +117,6 @@ app.post('/api/servers/refresh', async (req, res) => {
 });
 
 app.post('/api/join', async (req, res) => {
-  let reservationId = null;
   try {
     const payload = req.body || {};
     const selection = ensureServerSelection(payload);
@@ -130,39 +135,75 @@ app.post('/api/join', async (req, res) => {
       return;
     }
 
-    reservationId = reservation.reservationId;
-    const result = await requestJoin(selection);
-    const hopLimit = result.ok
-      ? hopLimitService.commit(reservationId)
-      : hopLimitService.release(reservationId);
-    reservationId = null;
+    const reservationToken = randomUUID();
+    const timer = setTimeout(() => {
+      const pending = pendingLaunches.get(reservationToken);
+      if (pending) {
+        pendingLaunches.delete(reservationToken);
+        hopLimitService.release(pending.reservationId);
+      }
+    }, LAUNCH_RESERVATION_TTL_MS);
+    timer.unref();
+    pendingLaunches.set(reservationToken, {
+      reservationId: reservation.reservationId,
+      selection,
+      timer
+    });
 
-    const responseCode = result.ok ? 200 : 400;
-    res.status(responseCode).json(buildApiResponse(
-      result.ok,
-      result.ok ? 'Roblox launch request sent.' : 'Roblox launch request failed.',
-      {
-        placeId: selection.placeId,
-        serverJobId: selection.serverJobId,
-        status: result.status,
-        launchUri: result.launchUri,
-        error: result.error || null,
-        joinConfirmed: false,
-        joinVerified: false,
-        requestedAt: result.launchedAt || new Date().toISOString(),
-        hopLimit
-      },
-      responseCode
-    ));
+    res.status(202).json(buildApiResponse(true, 'Waiting for the local Windows launch agent.', {
+      ...selection,
+      status: 'awaiting_local_agent',
+      reservationToken,
+      launchUri: null,
+      joinConfirmed: false,
+      joinVerified: false,
+      hopLimit: reservation.status
+    }, 202));
   } catch (error) {
-    if (reservationId) {
-      hopLimitService.release(reservationId);
-    }
     res.status(400).json(buildApiResponse(false, 'Join request rejected.', {
       error: error instanceof Error ? error.message : 'Unknown validation error.',
       hopLimit: hopLimitService.getStatus()
     }, 400));
   }
+});
+
+app.post('/api/join/complete', (req, res) => {
+  const { reservationToken, launchRequested } = req.body || {};
+  const pending = typeof reservationToken === 'string'
+    ? pendingLaunches.get(reservationToken)
+    : null;
+  if (!pending) {
+    res.status(404).json(buildApiResponse(false, 'Launch reservation expired or was not found.', {
+      status: 'reservation_not_found',
+      hopLimit: hopLimitService.getStatus()
+    }, 404));
+    return;
+  }
+
+  if (typeof launchRequested !== 'boolean') {
+    res.status(400).json(buildApiResponse(false, 'A boolean launchRequested result is required.', {
+      status: 'invalid_completion',
+      hopLimit: hopLimitService.getStatus()
+    }, 400));
+    return;
+  }
+
+  clearTimeout(pending.timer);
+  pendingLaunches.delete(reservationToken);
+  const hopLimit = launchRequested
+    ? hopLimitService.commit(pending.reservationId)
+    : hopLimitService.release(pending.reservationId);
+
+  res.status(200).json(buildApiResponse(true, launchRequested
+    ? 'Local launch request was accepted.'
+    : 'Launch reservation released; no launch request was accepted.', {
+    ...pending.selection,
+    status: launchRequested ? 'launch_requested' : 'launch_failed',
+    launchUri: null,
+    joinConfirmed: false,
+    joinVerified: false,
+    hopLimit
+  }, 200));
 });
 
 app.get('*', (req, res) => {

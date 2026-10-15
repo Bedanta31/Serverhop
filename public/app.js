@@ -3,6 +3,8 @@ const DAILY_HOP_LIMIT = 50;
 const DAILY_HOP_COUNTER_KEY = 'monster-hopper-daily-hop-counter-v1';
 const POST_LAUNCH_REFRESH_DELAY_MS = 5000;
 const MIN_HOP_INTERVAL_SECONDS = 15;
+const LOCAL_AGENT_URL = 'http://127.0.0.1:3210';
+const API_BASE_URL = String(window.MONSTER_HOPPER_CONFIG?.apiBaseUrl || '').replace(/\/+$/, '');
 const { AutoHopController } = window.MonsterHopperAutoHopController;
 const { ServerSkipHistory } = window.MonsterHopperServerSkipHistory;
 const {
@@ -61,6 +63,10 @@ let profileAvatarTimerId = null;
 let refreshRequestSeq = 0;
 let refreshInProgress = false;
 let serverSkipHistory;
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   cacheElements();
@@ -196,12 +202,12 @@ function createAutoHopController() {
     onMessage: (message) => {
       refs.autoHopMessage.textContent = message;
     },
-    onJoinError: () => {
+    onJoinError: (error) => {
       if (isDailyLimitReached()) {
         stopAutoHop();
         return;
       }
-      if (refs.pauseOnFailureToggle.checked) {
+      if (error.stopAutoHop || refs.pauseOnFailureToggle.checked) {
         stopAutoHop();
       }
     }
@@ -287,13 +293,13 @@ function syncHopLimitFromServer(hopLimit) {
 
 async function loadBackendHopLimit() {
   try {
-    const response = await fetch('/api/hop-limit', { headers: { Accept: 'application/json' } });
+    const response = await fetch(apiUrl('/api/hop-limit'), { headers: { Accept: 'application/json' } });
     const payload = await response.json();
     if (response.ok && payload.success) {
       syncHopLimitFromServer(payload.data);
     }
   } catch (error) {
-    refs.hopLimitMessage.textContent = 'Daily hop limit status could not be loaded from the local backend.';
+    refs.hopLimitMessage.textContent = 'Daily hop limit status could not be loaded from the configured API.';
   }
 }
 
@@ -385,7 +391,8 @@ function refreshServerList({ manual = false, signal } = {}) {
     refs.refreshStatusText.textContent = 'Updating servers...';
     refs.refreshButton.disabled = true;
     try {
-      const url = manual ? '/api/servers?force=true&limit=100&maxPages=5' : '/api/servers?limit=100&maxPages=5';
+      const path = manual ? '/api/servers?force=true&limit=100&maxPages=5' : '/api/servers?limit=100&maxPages=5';
+      const url = apiUrl(path);
       const response = await fetch(url, { headers: { Accept: 'application/json' }, signal });
       const payload = await response.json();
       if (requestSeq !== refreshRequestSeq) {
@@ -645,8 +652,10 @@ function sendJoinRequest(server, { signal, scheduleRefreshAfterLaunch = true } =
   const launchStartedAt = Date.now();
 
   const request = (async () => {
+    let reservationToken = null;
+    let launchRequested = false;
     try {
-      const response = await fetch('/api/join', {
+      const response = await fetch(apiUrl('/api/join'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -666,8 +675,75 @@ function sendJoinRequest(server, { signal, scheduleRefreshAfterLaunch = true } =
         }
         throw launchError;
       }
+      if (data.status !== 'awaiting_local_agent' || typeof data.reservationToken !== 'string') {
+        throw new Error('The API returned an unexpected launch authorization response.');
+      }
+      reservationToken = data.reservationToken;
 
-      recordSuccessfulHop(data.hopLimit);
+      if (signal?.aborted) {
+        await completeLaunchReservation(reservationToken, false);
+        reservationToken = null;
+        return;
+      }
+
+      let localStatus;
+      try {
+        const statusResponse = await fetch(`${LOCAL_AGENT_URL}/api/status`, {
+          headers: { Accept: 'application/json' }
+        });
+        const statusPayload = await statusResponse.json();
+        if (!statusResponse.ok || !statusPayload.success) {
+          throw new Error(statusPayload.message || 'The local launch agent status check failed.');
+        }
+        localStatus = statusPayload.data;
+      } catch (error) {
+        throw new Error(`The local launch agent could not be reached. Ensure it is running with "npm run agent", allow this website origin in MONSTER_HOPPER_ALLOWED_ORIGINS, and permit local-network access in your browser. (${error.message})`);
+      }
+
+      if (!localStatus.launchAvailable) {
+        throw new Error(localStatus.error || 'The local launch agent cannot launch Roblox on this PC.');
+      }
+
+      if (signal?.aborted) {
+        await completeLaunchReservation(reservationToken, false);
+        reservationToken = null;
+        return;
+      }
+
+      const localResponse = await fetch(`${LOCAL_AGENT_URL}/api/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+      const localPayload = await localResponse.json();
+      if (!localResponse.ok || !localPayload.success || localPayload.data?.ok !== true) {
+        throw new Error(localPayload.data?.error || localPayload.message || 'The local agent could not start Roblox.');
+      }
+      launchRequested = true;
+
+      let completionResponse;
+      let completionPayload;
+      try {
+        completionResponse = await fetch(apiUrl('/api/join/complete'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reservationToken, launchRequested: true })
+        });
+        completionPayload = await completionResponse.json();
+      } catch (error) {
+        const completionError = new Error(`Roblox launch was requested on this PC, but the API could not confirm the daily hop count. Do not retry immediately; verify Roblox first. (${error.message})`);
+        completionError.stopAutoHop = true;
+        throw completionError;
+      }
+      if (!completionResponse.ok || !completionPayload.success) {
+        const completionError = new Error(`Roblox launch was requested on this PC, but the API could not confirm the daily hop count. Do not retry immediately; verify Roblox first. (${completionPayload.message || 'confirmation failed'})`);
+        completionError.stopAutoHop = true;
+        throw completionError;
+      }
+      reservationToken = null;
+      syncHopLimitFromServer(completionPayload.data?.hopLimit);
+
+      recordSuccessfulHop(completionPayload.data?.hopLimit);
       recordAttemptedServer(server.jobId, launchStartedAt);
       if (scheduleRefreshAfterLaunch) {
         schedulePostLaunchRefresh(signal, launchStartedAt);
@@ -675,6 +751,14 @@ function sendJoinRequest(server, { signal, scheduleRefreshAfterLaunch = true } =
       renderStats();
       renderServerList();
     } catch (error) {
+      if (reservationToken && !launchRequested) {
+        try {
+          await completeLaunchReservation(reservationToken, false);
+          reservationToken = null;
+        } catch (releaseError) {
+          console.error('Could not release the unused launch reservation.', releaseError);
+        }
+      }
       if (signal?.aborted) {
         return;
       }
@@ -692,6 +776,20 @@ function sendJoinRequest(server, { signal, scheduleRefreshAfterLaunch = true } =
   return request;
 }
 
+async function completeLaunchReservation(reservationToken, launchRequested) {
+  const response = await fetch(apiUrl('/api/join/complete'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reservationToken, launchRequested })
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.message || 'The launch reservation could not be completed.');
+  }
+  syncHopLimitFromServer(payload.data?.hopLimit);
+  return payload.data;
+}
+
 function recordAttemptedServer(jobId, initiatedAt) {
   const date = new Date();
   const windowKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(Math.floor(date.getMinutes() / 15) * 15).padStart(2, '0')}`;
@@ -705,7 +803,7 @@ async function refreshProfileAvatar() {
   }
   let refreshDelayMs = 5 * 60 * 1000;
   try {
-    const response = await fetch('/api/profile-avatar', { headers: { Accept: 'application/json' } });
+    const response = await fetch(apiUrl('/api/profile-avatar'), { headers: { Accept: 'application/json' } });
     if (!response.ok) {
       throw new Error(`Avatar endpoint returned status ${response.status}.`);
     }
