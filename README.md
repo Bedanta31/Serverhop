@@ -57,6 +57,8 @@ In Railway, set `MONSTER_HOPPER_ALLOWED_ORIGINS` to the exact GitHub Pages origi
 
 The site uses relative asset paths so it works at the root or under a GitHub Pages project path. The API URL is only configured in `runtime-config.js`; no browser OS guess or Railway OS value is used to decide whether Roblox can launch.
 
+To publish the frontend, set the repository's **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The `Publish GitHub Pages` workflow packages only `public/` and is triggered manually from **Actions → Publish GitHub Pages → Run workflow**; it does not publish on push. Select the branch you want to publish when starting the workflow.
+
 ## GitHub upload
 
 1. Create a repository in your GitHub account. Choose whether it is public or private.

@@ -26,6 +26,7 @@ test('documents and configures the frontend to use the implemented loopback agen
   const app = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
   const runtimeConfig = fs.readFileSync(path.join(__dirname, '..', 'public', 'runtime-config.js'), 'utf8');
   const readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+  const pagesWorkflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8');
   const runtimeContext = { window: {} };
   vm.runInNewContext(runtimeConfig, runtimeContext);
 
@@ -39,6 +40,9 @@ test('documents and configures the frontend to use the implemented loopback agen
   assert.doesNotMatch(runtimeContext.window.MONSTER_HOPPER_CONFIG.apiBaseUrl, /localhost|127\.0\.0\.1/i);
   assert.match(readme, /MONSTER_HOPPER_ALLOWED_ORIGINS/);
   assert.match(readme, /http:\/\/127\.0\.0\.1:3210\/api\/status/);
+  assert.match(pagesWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(pagesWorkflow, /^\s+push:/m);
+  assert.match(pagesWorkflow, /path: public/);
 });
 
 test('serves the website and health route on a dynamically assigned port', async () => {
