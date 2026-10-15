@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
 
+process.env.MONSTER_HOPPER_ALLOWED_ORIGINS = 'https://username.github.io';
 const { startServer, getServerConfig } = require('../server.js');
 
 test('uses safe local defaults and Railway-provided network settings', () => {
@@ -31,7 +32,8 @@ test('serves the website and health route on a dynamically assigned port', async
     assert.match(page, /cosmic-anubis-hopper-logo\.png/);
     assert.match(page, /<div class="brand-wrap">/);
     assert.doesNotMatch(page, /<a class="brand-wrap"/);
-    assert.match(page, /<script src="\/server-data\.js"><\/script>/);
+    assert.match(page, /<script src="\.\/server-data\.js"><\/script>/);
+    assert.match(page, /<script src="\.\/runtime-config\.js"><\/script>/);
     assert.match(page, /id="intervalInput" type="number" min="15"/);
     assert.match(page, /Loading servers\.\.\./);
     assert.doesNotMatch(page, /Advanced details/i);
@@ -45,6 +47,11 @@ test('serves the website and health route on a dynamically assigned port', async
     const app = await appResponse.text();
     assert.equal(appResponse.status, 200);
     assert.doesNotMatch(app, /server-details|<summary>Details<\/summary>/);
+
+    const runtimeConfigResponse = await fetch(`${baseUrl}/runtime-config.js`);
+    const runtimeConfig = await runtimeConfigResponse.text();
+    assert.equal(runtimeConfigResponse.status, 200);
+    assert.match(runtimeConfig, /apiBaseUrl/);
 
     const stylesheetResponse = await fetch(`${baseUrl}/styles.css`);
     const stylesheet = await stylesheetResponse.text();
@@ -87,12 +94,76 @@ test('serves the website and health route on a dynamically assigned port', async
     assert.equal(health.success, true);
     assert.equal(health.data.placeId, '98664161516921');
 
+    const githubPagesResponse = await fetch(`${baseUrl}/api/health`, {
+      headers: { Origin: 'https://username.github.io' }
+    });
+    assert.equal(githubPagesResponse.status, 200);
+    assert.equal(githubPagesResponse.headers.get('access-control-allow-origin'), 'https://username.github.io');
+
+    const githubPagesPreflight = await fetch(`${baseUrl}/api/join`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://username.github.io',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type'
+      }
+    });
+    assert.equal(githubPagesPreflight.status, 204);
+    assert.equal(githubPagesPreflight.headers.get('access-control-allow-origin'), 'https://username.github.io');
+
     const hopLimitResponse = await fetch(`${baseUrl}/api/hop-limit`);
     const hopLimit = await hopLimitResponse.json();
     assert.equal(hopLimitResponse.status, 200);
     assert.equal(hopLimit.success, true);
     assert.equal(hopLimit.data.limit, 50);
     assert.equal(hopLimit.data.timezone, 'UTC');
+
+    const reservationResponse = await fetch(`${baseUrl}/api/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeId: '98664161516921', serverJobId: 'valid-server-id-1' })
+    });
+    const reservation = await reservationResponse.json();
+    assert.equal(reservationResponse.status, 202);
+    assert.equal(reservation.data.status, 'awaiting_local_agent');
+    assert.equal(reservation.data.joinConfirmed, false);
+    assert.equal(typeof reservation.data.reservationToken, 'string');
+    assert.equal(reservation.data.hopLimit.count, 0);
+    assert.equal(reservation.data.hopLimit.pending, 1);
+
+    const failedCompletionResponse = await fetch(`${baseUrl}/api/join/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reservationToken: reservation.data.reservationToken,
+        launchRequested: false
+      })
+    });
+    const failedCompletion = await failedCompletionResponse.json();
+    assert.equal(failedCompletionResponse.status, 200);
+    assert.equal(failedCompletion.data.status, 'launch_failed');
+    assert.equal(failedCompletion.data.hopLimit.count, 0);
+    assert.equal(failedCompletion.data.hopLimit.pending, 0);
+
+    const acceptedReservationResponse = await fetch(`${baseUrl}/api/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeId: '98664161516921', serverJobId: 'valid-server-id-2' })
+    });
+    const acceptedReservation = await acceptedReservationResponse.json();
+    const acceptedCompletionResponse = await fetch(`${baseUrl}/api/join/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reservationToken: acceptedReservation.data.reservationToken,
+        launchRequested: true
+      })
+    });
+    const acceptedCompletion = await acceptedCompletionResponse.json();
+    assert.equal(acceptedCompletionResponse.status, 200);
+    assert.equal(acceptedCompletion.data.status, 'launch_requested');
+    assert.equal(acceptedCompletion.data.joinConfirmed, false);
+    assert.equal(acceptedCompletion.data.hopLimit.count, 1);
   } finally {
     await new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());

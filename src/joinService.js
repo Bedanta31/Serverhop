@@ -1,12 +1,20 @@
 const { exec } = require('child_process');
+const os = require('os');
 const { ROBLOX_LAUNCH_SCHEME, GAME_PLACE_ID_STRING } = require('./config.js');
 const { validatePlaceId, validateServerJobId } = require('./validation.js');
+const { detectOperatingSystem, getLaunchCapability } = require('./windowsSupport.js');
+const { findRobloxPlayer } = require('./robloxInstall.js');
 
 function buildLaunchUri(placeId, serverJobId) {
   return `${ROBLOX_LAUNCH_SCHEME}?placeId=${placeId}&gameInstanceId=${serverJobId}`;
 }
 
-function requestJoin({ placeId, serverJobId }) {
+function requestJoin({ placeId, serverJobId }, {
+  platform = process.platform,
+  release = os.release(),
+  robloxExecutable = findRobloxPlayer(),
+  execute = exec
+} = {}) {
   const sanitizedPlaceId = String(placeId ?? '').trim();
   const sanitizedServerJobId = String(serverJobId ?? '').trim();
 
@@ -20,14 +28,19 @@ function requestJoin({ placeId, serverJobId }) {
 
   const launchUri = buildLaunchUri(sanitizedPlaceId, sanitizedServerJobId);
 
-  if (process.platform !== 'win32') {
+  const capability = getLaunchCapability({
+    operatingSystem: detectOperatingSystem({ platform, release }),
+    robloxInstalled: Boolean(robloxExecutable)
+  });
+
+  if (!capability.available) {
     return Promise.resolve({
       ok: false,
-      status: 'unsupported_os',
+      status: platform === 'win32' ? 'local_launch_unavailable' : 'unsupported_os',
       placeId: sanitizedPlaceId,
       serverJobId: sanitizedServerJobId,
       launchUri,
-      error: 'This launch flow is available only on Windows 11.',
+      error: capability.reason,
       joinConfirmed: false,
       joinVerified: false,
       launchedAt: new Date().toISOString()
@@ -35,7 +48,7 @@ function requestJoin({ placeId, serverJobId }) {
   }
 
   return new Promise((resolve) => {
-    exec(`cmd /c start "" "${launchUri}"`, { windowsHide: true }, (error) => {
+    execute(`cmd /c start "" "${launchUri}"`, { windowsHide: true }, (error) => {
       if (error) {
         resolve({
           ok: false,
