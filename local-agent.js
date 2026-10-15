@@ -37,7 +37,7 @@ function createLocalAgent({ allowedOrigins = getAllowedOrigins(), getStatus = ge
   app.use(createCorsMiddleware({ allowedOrigins, allowPrivateNetwork: true }));
   app.use(express.json({ limit: '32kb' }));
 
-  app.get('/api/status', (req, res) => {
+  const sendStatus = (req, res) => {
     try {
       res.status(200).json(buildApiResponse(true, 'Local launch agent status loaded.', getStatus(), 200));
     } catch (error) {
@@ -45,7 +45,9 @@ function createLocalAgent({ allowedOrigins = getAllowedOrigins(), getStatus = ge
         error: error instanceof Error ? error.message : 'Unknown local agent status error.'
       }, 500));
     }
-  });
+  };
+
+  app.get(['/', '/api/status'], sendStatus);
 
   app.post('/api/join', async (req, res) => {
     try {
