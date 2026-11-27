@@ -139,8 +139,15 @@ public final class RobloxServersClient {
                 } catch (ParseException ignoredDate) { }
             }
         }
+        String resetAfter = connection.getHeaderField("x-ratelimit-reset-after");
+        if (resetAfter != null) try {
+            return Math.max(1000L, (long)(Double.parseDouble(resetAfter.trim()) * 1000.0));
+        } catch (NumberFormatException ignored) { }
         String reset = connection.getHeaderField("x-ratelimit-reset");
-        if (reset != null) try { return Math.max(1000L, Long.parseLong(reset.trim()) * 1000L); }
+        if (reset != null) try {
+            long resetAtMillis = Long.parseLong(reset.trim()) * 1000L;
+            return Math.max(1000L, resetAtMillis - System.currentTimeMillis());
+        }
         catch (NumberFormatException ignored) { }
         return 20000L;
     }
