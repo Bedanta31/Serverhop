@@ -2,6 +2,10 @@
 
 Monster Hopper is a Node.js and Express website for browsing public Catch a Monster servers. The app serves its frontend and API from the same process. It requires no database, secret key, Roblox cookie, or account token.
 
+The `android/` directory contains the native Android client. It reads public server pages directly from Roblox's public servers endpoint for place `98664161516921`; it does not depend on the Railway API URL configured for the website. Roblox returns player counts as `playing` (the `players` field is a player-token array), so the Android client maps `playing` to its count, filters full/invalid instances, and follows Roblox's page cursors. Roblox rate limits are surfaced and respected.
+
+Android Auto-Hop selects the lowest-population eligible server on each fetched page, remembers tried and queued IDs, and scans subsequent pages over time. When the user enables the visible overlay, the service can request Roblox to open a candidate while in the background; without it, the notification provides a Join action. Roblox does not confirm to this app that a player joined the target instance. The app offers 5, 10, 15, 20, 30, and 60 second intervals, resets local server history at quarter-hour boundaries, and uses the notification permission plus an optional overlay permission for background controls.
+
 ## Requirements
 
 - Node.js 18 or newer

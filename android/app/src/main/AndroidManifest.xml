@@ -7,10 +7,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <queries>
+        <package android:name="com.roblox.client" />
+    </queries>
+
     <application
         android:allowBackup="false"
+        android:icon="@drawable/ic_app"
         android:label="Monster Hopper"
-        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:theme="@style/MonsterHopperTheme"
         android:usesCleartextTraffic="false">
 
         <activity
