@@ -111,11 +111,12 @@ public class AutoHopService extends Service {
                 }
 
                 String finalId = chosen;
+                final int selectedPlayers = lowest;
                 markAttempted(finalId);
                 incrementAttempts();
 
                 handler.post(() -> {
-                    updateNotification("Joining server (" + lowest + " players)");
+                    updateNotification("Joining server (" + selectedPlayers + " players)");
 
                     try {
                         Intent join = new Intent(Intent.ACTION_VIEW,
